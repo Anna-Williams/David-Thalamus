@@ -1,0 +1,122 @@
+---
+title: "Gene and Cell QC"
+author: "NadineBestard"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+
+After the first QC we visualise the data with the same plots, this time with the filtered object.
+
+# Set-up
+```{r output-code, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r set-up, message=FALSE, warning=FALSE}
+library(here) # for reproducible paths
+library(SingleCellExperiment)
+library(scater) # For qcs
+library(org.Mm.eg.db) # To annotate the genenames
+library(ggplot2) # for the bin2 density
+library(pals) # viridis colour
+```
+
+```{r load-sce}
+project <- "fire-mice"
+sce <- readRDS(here("processed",project, "sce_QC_01.RDS"))
+
+```
+
+The object has `r dim(sce)[1]` genes and `r dim(sce)[2]` cells after filtering
+
+### Violin plots
+
+```{r}
+plotColData(sce, x = "Sample", y = "sum", colour_by = "genotype") +
+  ggtitle("Total count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+plotColData(sce, x = "Sample", y = "sum", colour_by = "genotype") +
+  scale_y_log10() + ggtitle("Total count log scale") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r}
+plotColData(sce, x = "Sample", y = "detected", colour_by = "genotype") +
+  scale_y_log10() + ggtitle("Detected Genes") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+```{r}
+plotColData(sce, x = "Sample", y = "sum", colour_by = "chip") +
+  scale_y_log10() + ggtitle("total count by batch") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+ 
+ 
+```{r}
+plotColData(sce, x = "Sample", y = "subsets_mt_percent", colour_by = "genotype") +
+  ggtitle("Mitocchondrial percentatge") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+### Histograms
+
+In the x axis we can see the total number of umi (library size) per cell, the
+number of detected genes per cell and the mitochondrial percentage per cell;
+with the number of cells for each measure in the y axis.
+
+```{r}
+hist(
+  sce$total,
+  breaks = 100
+)
+```
+
+This object had already been filtrated with the cell-calling algorithm from
+CellRanger, that is meant to remove empty droplets. Therefore it is expected to
+see the total sum of umi skewed as in the plot above.
+
+```{r}
+hist(
+  sce$detected,
+  breaks = 100
+)
+```
+
+
+```{r}
+hist(
+  sce$subsets_mt_percent,
+  breaks = 100
+)
+```
+
+
+### Scatter plots
+
+```{r}
+plotColData(sce, x = "sum", y = "subsets_mt_percent", colour_by = "outlier")
+plotColData(sce, x = "sum", y = "detected", colour_by = "outlier")
+plotColData(sce, x = "sum", y = "detected", colour_by = "Sample")
+```
+
+Colour fill by density: 
+
+```{r}
+plotColData(sce, x = "sum", y="subsets_mt_percent") + geom_bin_2d(bins=c(100,100)) + scale_fill_gradientn(colours = viridis(200))
+plotColData(sce, x = "sum", y="detected") + geom_bin_2d(bins=c(100,100)) + scale_fill_gradientn(colours = viridis(200))
+```
+
+
+## Session Info
+
+<details>
+  <summary>Click to expand </summary>
+```{r}
+sessionInfo()
+```
+
+</details>
