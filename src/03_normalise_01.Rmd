@@ -138,6 +138,7 @@ if (!(file.exists(here("processed", project,  "variance_explained.RDS")))) {
     exprs_values = "logcounts_raw",
     variables = c(
       "chip",
+      "sex",
       "genotype",
       "Sample",
       "subsets_mt_percent",
@@ -166,6 +167,7 @@ if (!(file.exists(here("processed", project,  "variance_explained_norm.RDS")
     sce,
     variables = c(
       "chip",
+      "sex",
       "genotype",
       "Sample",
       "subsets_mt_percent",
@@ -201,16 +203,26 @@ Another type of dimensional reduction are the non linear UMAP and TSNE reduction
 <!-- to assess how integrated the data is.  -->
 ```{r umap}
 sce <- runUMAP(sce,  dimred="PCA")
-plotReducedDim(sce, colour_by= "chip", point_size=0.1, dimred = "UMAP") + 
+plotReducedDim(sce, colour_by= "chip",  dimred = "UMAP") + 
       ggtitle("UMAP dimensional reduction")
 ```
 ```{r tsne}
 sce <- runTSNE(sce,  dimred="PCA")
-plotReducedDim(sce, colour_by= "chip", point_size=0.1, dimred = "TSNE") + 
+plotReducedDim(sce, colour_by= "chip",  dimred = "TSNE") + 
+      ggtitle("TSNE dimensional reduction")
+plotReducedDim(sce, colour_by= "genotype",  dimred = "TSNE") + 
+      ggtitle("TSNE dimensional reduction")
+plotReducedDim(sce, colour_by= "sex",  dimred = "TSNE") + 
       ggtitle("TSNE dimensional reduction")
 ```
 
-Borderline of needing for batch correction. We will leave this uncorrected for now, and reassess after the cluster QC and second cell and gene QC.
+
+
+```{r}
+plotReducedDim(sce, dimred="TSNE", colour_by="chip", point_size=0.1,other_fields = c("Sample")) + facet_wrap(~Sample, nrow = 2)
+
+plotReducedDim(sce, dimred="TSNE", colour_by="sex", point_size=0.1,other_fields = c("Sample")) + facet_wrap(~Sample, nrow = 2)
+```
 
 
 
