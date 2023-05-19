@@ -1,0 +1,121 @@
+---
+title: "Batch correction"
+author: "NadineBestard"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set-up
+
+```{r set-up, message=FALSE, warning=FALSE}
+library(here) # for reproducible paths
+library(SingleCellExperiment)
+library(scater) # For qc and visualisation
+library(scran) # For normalisation
+library(ggplot2) # To add titles to plots
+library(batchelor) # Batch correction
+```
+
+```{r project}
+project <- "fire-mice"
+```
+
+# Batch correction with MNN
+
+Combat was shown to outperform other batch correction methods for simple batch
+correction (Buttner et. al, 2019). However, this will also regress other 
+biological differences that are not well balanced between batches. Integration 
+techniques account for this fact, with the downside that it can lead to
+over-correction due to increased degrees of freedom of these non-linear methods. 
+
+We use a merge tree, useful for merging together batches that are known to be 
+more closely related (same tissue) before attempting difficult merges involving more dissimilar
+batches.
+
+```{r import}
+
+```
+
+```{r batch-correct}
+if (!(file.exists(
+  here("processed", project,  "sce_corrected.RDS")
+))) {
+sce <- readRDS(here("processed", project,  "sce_dimred_01.RDS"))
+set.seed(100)
+sce <- correctExperiments(sce,
+  batch = factor(sce$sex),
+  subset.row = rowSubset(sce),
+  correct.all=TRUE,
+  PARAM = FastMnnParam(
+  d = 25,
+  prop.k=0.05
+  )
+)
+} else {
+   sce <- readRDS(here("processed", project,  "sce_corrected.RDS"))
+}
+```
+
+
+```{r tsne}
+if (!(file.exists(
+  here("processed", project,  "sce_corrected.RDS")
+))) {
+#keep the previous dimensional reduction just in case
+reducedDim(sce, "TSNE_uncorrected") <- reducedDim(sce, "TSNE")
+set.seed(100)
+sce <- runTSNE(sce,  dimred="corrected")
+}
+# plot uit
+plotReducedDim(sce, colour_by= "chip", point_size=0.1, dimred = "TSNE_uncorrected") + 
+      ggtitle("TSNE dimensional reduction before correction")
+plotReducedDim(sce, colour_by= "chip", point_size=0.1, dimred = "TSNE") + 
+      ggtitle("TSNE dimensional reduction corrected")
+```
+
+One useful diagnostic is the proportion of variance within each batch that is 
+lost during MNN correction. Specifically, this refers to the within-batch variance 
+that is removed during orthogonalization with respect to the average correction 
+vector at each merge step. This is in the metadata, which contains a matrix of 
+the variance lost in each batch (column) at each merge step (row).
+
+Large proportions of lost variance (>10%) suggest that correction is removing
+genuine biological heterogeneity. This would occur due to violations of the 
+assumption of orthogonality between the batch effect and the biological subspace.
+In this case, the proportion of lost variance is small, indicating that 
+non-orthogonality is not a major concern.
+
+```{r}
+metadata(sce)$merge.info$lost.var
+```
+
+```{r}
+if (!(file.exists(
+  here("processed", project,  "sce_corrected.RDS")
+))) {  saveRDS(sce, here("processed", project,  "sce_corrected.RDS"))}
+```
+
+
+## Session Info
+
+<details>
+
+<summary>
+
+Click to expand
+
+</summary>
+
+```{r session-info}
+sessionInfo()
+```
+
+</details>
