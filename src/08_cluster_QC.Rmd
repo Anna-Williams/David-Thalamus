@@ -1,0 +1,387 @@
+---
+title: "Cluster quality control"
+author: "Nadine Bestard"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### set-up
+
+```{r set-up, message=FALSE, warning=FALSE}
+library(SingleCellExperiment)
+library(here) # reproducible paths
+library(scater) # plot reduced dims
+library(tibble)  # for `rownames_to_column`
+library(scDblFinder) # detect doublets
+library(dplyr) # df filtering
+```
+
+```{r project}
+project <- "fire-mice"
+```
+
+```{r load}
+if (!file.exists(here("processed", project, "sce_anno_01.RDS"))) {
+  sce <- readRDS(here("processed", project, "sce_clusters_01.RDS"))
+}else{
+  sce <- readRDS(here("processed", project, "sce_anno_01.RDS"))
+}
+```
+
+```{r colours}
+source(here("src/colours.R"))
+```
+
+### Introduction
+
+As in [publication] we will perform a cluster QC to remove clusters of poorer
+quality. This will be assessed by the number of UMI counts, the mitochondrial
+percentage, doublet analysis, ribosomal genes and the number of samples that
+contribute to each cluster. Moreover we will keep in mind our experimental
+groups in order to ensure biological effects are not being lost.
+
+```{r}
+plotTSNE(sce, colour_by = "clusters_named", point_size=0.5,
+          text_by = "clusters_named", text_size = 3) +
+  scale_color_manual(values = cols) 
+```
+
+### Number of molecules per cluster
+
+```{r}
+plotTSNE(sce, colour_by = "total") + 
+  ggtitle("Total number of umi counts per cell")
+plotTSNE(sce, colour_by = "detected") +
+  ggtitle("Detected number of genes per cell")
+```
+
+Lower values of umi counts and detected genes can be associated to lower quality
+cells. Cells can also have lower expressed genes due to their biological state
+or celltype.
+
+```{r}
+pct_cells<- 40
+min_umi  <- 3000
+```
+
+Select clusters with `r pct_cells` % cells having less than `r min_umi`umi
+counts.
+
+```{r}
+umi_df <- as.data.frame(cbind(sce$total, as.character(sce$clusters_named)))
+colnames(umi_df) <- c("umi", "clusters_named")
+
+# caculate the percentatges of cells that are "low umi"
+umi_df <- 
+  umi_df %>% 
+  mutate(low_umi = as.numeric(umi) < min_umi) %>% 
+  group_by(clusters_named) %>% 
+  summarise(n_low_umi = sum(low_umi), n_cells = n()) %>%
+  mutate(pct_cell_low_umi = (n_low_umi/n_cells)*100) 
+umi_df %>% arrange(desc(pct_cell_low_umi))
+
+# Filter the clusters that have a high proportion of "low umi"
+low_umi_clusters <- 
+  umi_df %>% 
+  filter(pct_cell_low_umi > pct_cells) %>% 
+  .$clusters_named
+```
+
+The clusters flagged are `r low_umi_clusters`.
+
+### Mithocondrial genes
+
+High mithocondrial genes is associated with stressed, lower quality, cells.
+
+```{r}
+plotTSNE(sce, colour_by = "subsets_mt_percent") +#, text_by = "clusters_named") + 
+  ggtitle("Percentatge mithocondrial genes")
+```
+
+```{r}
+pct_cells<- 50
+pct_mt  <- 5
+```
+
+Select clusters with `r pct_cells` % cells having more than `r pct_mt`%
+mithocondrial genes.
+
+```{r}
+mt_df <- as.data.frame(cbind(sce$subsets_mt_percent, as.character(sce$clusters_named)))
+colnames(mt_df) <- c("subsets_mt_percent", "clusters_named")
+
+mt_df <- 
+  mt_df %>% 
+  mutate(high_pct = as.numeric(subsets_mt_percent) > pct_mt) %>% 
+  group_by(clusters_named) %>% 
+  summarise(n_high_mt = sum(high_pct), n_cells = n()) %>% 
+  mutate(pct_cell_high_mt = (n_high_mt/n_cells)*100) %>%  
+  arrange(desc(pct_cell_high_mt))
+mt_df
+high_mt_clusters <- 
+  mt_df %>% 
+  filter(pct_cell_high_mt > pct_cells) %>% 
+  .$clusters_named
+
+```
+
+The clusters flagged are `r high_mt_clusters`.
+
+### Ribosomal genes
+
+To visualise the ribosomal content in the whole dataset we plotted the cells
+according to their ribosomal content. High ribosomal content in one cluster,
+that expresses a mix profile, could indicate that the cells are clustering based
+on ribosomal gene content.
+
+```{r}
+# the cluster 
+# save ribosomal genes
+is_ribo <- grepl("^Rp[sl]", rownames(sce))
+# recompute the quality metrics, subseting the ribosomal genes
+ribo_qc <- perCellQCMetrics(sce, subsets = list(ribo = is_ribo))
+# we are only interested in ribo
+sce$subsets_ribo_percent <- ribo_qc$subsets_ribo_percent
+sce$subsets_ribo_sum <- ribo_qc$subsets_ribo_sum
+sce$subsets_ribo_detected <- ribo_qc$subsets_ribo_detected
+
+```
+
+```{r}
+plotTSNE(sce, colour_by = "subsets_ribo_percent") + 
+  ggtitle("Percentatge ribosomal genes")
+```
+
+### Number of cells from each sample
+
+How many mice contribute to each cluster?
+
+```{r cells-per-sample}
+# create a summary per sample
+sum_per_mouse_cluster <- table(sce$Sample, sce$clusters_named )
+as.data.frame.matrix(sum_per_mouse_cluster)
+```
+
+```{r}
+# count how many cells from each gnt group  there are per cluster
+sum_per_smp_cluster <- table(sce$Sample, sce$clusters_named )
+
+# normalise per cluster, looking how the KO and WT are distributed
+# across the clusters, to give to both groups the same weight
+prop_per_cluster <- prop.table(sum_per_smp_cluster, margin = 1)
+
+# calculate the proportions for each cluster
+prop_per_smp <- round(prop.table(prop_per_cluster , margin = 2 )*100, 2)
+
+# Display
+prop_per_smp<- as.data.frame(prop_per_smp)
+colnames(prop_per_smp) <- c("Sample", "cluster", "Proportion")
+
+ggplot(data = prop_per_smp, aes(x = cluster, y = Proportion, fill = Sample)) +
+  geom_bar(position = "fill", stat = "identity") + theme(axis.text.x = element_text(angle = 45, hjust=1, vjust = 1)) +
+  scale_fill_manual(values = brewer.paired(12)) 
+```
+
+
+### Clusters of doublet cells
+
+Detection of clusters formed by doublets/multiplets (i.e. multiple cells
+captured within the same droplet or reaction volume). The function test each
+cluster against the null hypothesis that it *does* consist of doublets. The tool
+consider every possible triplet of clusters consisting of a query cluster and
+two putative "source" clusters. Under the null hypothesis that the query
+consists of doublets from the two sources, it computes the number of genes
+(`num.de`) that are differentially expressed in the same direction in the query
+cluster compared to both of the source clusters. Such genes would be unique
+markers for the query cluster and provide evidence against the null hypothesis.
+
+-   Clusters with the few unique genes (`num.de`) are more likely to be composed
+    of doublets.
+
+-   Potential doublets should also have larger library size than the cells from
+    the source clusters, resulting in `lib.size` ratios bellow unity.
+
+```{r}
+if(!file.exists(here("outs",project,  "doublet_clusters_res0.3.csv"))){
+  res_dbl <- findDoubletClusters(sce, sce$clusters_named)
+  res_dbl <- res_dbl %>% 
+    as.data.frame() %>% 
+    rownames_to_column("cluster")
+  write.csv(res_dbl, here("outs", project,  "doublet_clusters_res0.3.csv"))
+}else{
+  res_dbl <- read.csv(here("outs", project,  "doublet_clusters_res0.3.csv"), row.names = 1)
+}
+res_dbl
+```
+All clusters have a significant p-value to reject the null hypothesis that they do consist of doublets. 
+The clusters with less DE genes with the potential sources are microglia clusters, lickeley formed by microglia engulfing other cell types.
+
+```{r}
+doublet <- c("tOPC_Microglia", "tAstro_Microglia")
+```
+
+<!-- ### Control vs fire mice -->
+
+We want to have a closer look at the clusters that do have a difference between
+the knockout and the wild type before deleting the clusters.
+
+```{r fig.height=15, fig.width=10, message=FALSE}
+# divide the two objects
+sce_ko <- sce[,sce$genotype == "KO"]
+sce_ctr <- sce[,sce$genotype == "WT"]
+# plot them side by side
+gridExtra::grid.arrange(
+plotTSNE(sce_ko, colour_by = "clusters_named", point_size=0.5,
+         point_alpha = 0.3, text_by = "clusters_named", text_size = 3) +
+  scale_color_manual(values = cols) +
+  ggtitle("fire mice"),
+plotTSNE(sce_ctr, colour_by = "clusters_named", point_size=0.5,
+         point_alpha = 0.3, text_by = "clusters_named", text_size = 3) +
+  scale_color_manual(values = cols) +
+  ggtitle("control"),
+ncol = 1
+)
+```
+
+#### Proportion KO-WT
+
+The poor quality cluster that are more abundant in KO than WT are coming mostly from one single sample, they will therphore not be "protected" and will be discarded. 
+
+<!-- In order to visualise the proportions from KO and WT for each cluster, we do not -->
+<!-- take in consideration the microglia clusters, as these are only present in the -->
+<!-- control, and we normalise per number of cells per cluster. -->
+
+<!-- ```{r} -->
+<!-- # delete the microglia -->
+<!-- sce_no_mc <- sce[,!grepl("Microglia", sce$clusters_named)] -->
+
+<!-- # count how many cells from each gnt group  there are per cluster -->
+<!-- sum_per_gnt_cluster_no_mc <- table(sce_no_mc$genotype, sce_no_mc$clusters_named ) -->
+
+<!-- # normalise per cluster, looking how the KO and WT are distributed -->
+<!-- # across the clusters, to give to both groups the same weight -->
+<!-- prop_per_cluster_no_mc <- prop.table(sum_per_gnt_cluster_no_mc, margin = 1) -->
+
+<!-- # calculate the proportions for each cluster -->
+<!-- prop_per_gnt_no_mc <- round(prop.table(prop_per_cluster_no_mc , margin = 2 )*100, 2) -->
+
+<!-- # Display -->
+<!-- prop_per_gnt_no_mc<- as.data.frame(prop_per_gnt_no_mc) -->
+<!-- colnames(prop_per_gnt_no_mc) <- c("Genotype", "cluster", "Proportion") -->
+
+<!-- prop_per_gnt_no_mc %>% -->
+<!--   filter(Genotype == "KO") %>% -->
+<!--   arrange(desc(Proportion)) -->
+
+<!-- ``` -->
+
+<!-- visualise in a plot -->
+
+<!-- ```{r plot} -->
+<!-- ggplot(data = prop_per_gnt_no_mc, aes(x = cluster, y = Proportion, fill = Genotype)) + -->
+<!--   geom_bar(position = "fill", stat = "identity") + theme(axis.text.x = element_text(angle = 45, hjust=1, vjust = 1)) + -->
+<!--   scale_fill_manual(values = col_wt_ko) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- ko_pct <- 65 -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- difference_KO_WT <- -->
+<!--   prop_per_gnt_no_mc %>% -->
+<!--   arrange(desc(Proportion)) %>% -->
+<!-- # the microglia clusters will be the top differences, but this is not -->
+<!--     # something we are specially interested -->
+<!--   filter(!(cluster %in% c("Microglia1", "Microglia2"))) %>% -->
+<!--     filter(Genotype == "KO") %>% -->
+<!--     # select the "interesting" clusters -->
+<!--   filter(Proportion > ko_pct) %>% -->
+<!--   .$cluster -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- gt_ko_pct <- unique(sce$clusters_named[sce$clusters_named %in% c( high_mt_clusters, low_umi_clusters, doublet) & -->
+<!--     (sce$clusters_named %in% difference_KO_WT)]) -->
+<!-- #gt_ko_pct -->
+<!-- ``` -->
+
+<!-- There are r length(gt_ko_pct)` clusters flagged as poor quality and also more -->
+<!-- abundant (greater than r ko_pct` %) in the KO animals, these are r gt_ko_pct`. -->
+
+
+### Cluster QC
+
+the clusters delted from downstream analysis are highlighted bellow, and are composed by clusters with:
+
+-   low umi: more than 40% of cells having less than 3000 umi counts. These are:
+
+`r low_umi_clusters`
+
+-   high mt : majority of cells having more than 5 % mitochondrial genes
+
+`r high_mt_clusters`
+
+-   doublet: clusters composed by cells that express markers from different cell
+    types.
+    
+`r doublet`
+
+<!-- -   artefacts coming from few samples: -->
+
+<!-- r low_n_mice` -->
+
+<!-- -   Clusters with different abundance between KO and WT were kept, as they could be different due to the biological condition. -->
+
+<!-- r gt_ko_pct` -->
+
+
+```{r filterout}
+sce$filter_out <- sce$clusters_named %in% c( high_mt_clusters, low_umi_clusters, doublet) 
+filter_out <- sum(sce$filter_out)
+plotTSNE(sce, colour_by = "filter_out", point_size=0.5,
+         point_alpha = 0.3, text_by = "clusters_named", text_size = 3) 
+#plotTSNE(sce, colour_by = "filter_out", point_size=0.5,
+#         point_alpha = 0.3, text_by = "celltype", text_size = 3)
+```
+
+
+```{r save, eval=TRUE, include=TRUE}
+if (!file.exists(here("processed", project, "sce_clusterQC.RDS"))){
+ sce <- sce[, sce$filter_out == FALSE]
+ saveRDS(sce, here("processed", project, "sce_clusterQC.RDS"))
+}
+
+
+```
+
+This filters `r filter_out` cells, leaving an object with
+`r sum(sce$filter_out == FALSE)`cells.
+
+## Session Info
+
+<details>
+
+<summary>
+
+Click to expand
+
+</summary>
+
+```{r session-info}
+sessionInfo()
+```
+
+</details>
