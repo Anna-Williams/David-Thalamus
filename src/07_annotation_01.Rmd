@@ -471,58 +471,41 @@ if(!file.exists(here("outs", project, "markers_res1", "markers_res1.RDS"))){
 }
 ```
 
-<!-- ## Rename the Clusters with assigned Cell Types -->
+## Rename the Clusters with assigned Cell Types
 
-<!-- With the help of the known markers plotted above, the DE between -->
-<!-- clusters and the top expressed genes the celltype identity of every -->
-<!-- cluster has been identified. -->
+With the help of the known markers plotted above, the DE between
+clusters and the top expressed genes the celltype identity of every
+cluster has been identified.The annotation is performed at cluster resolution 0.3
 
-<!-- ```{r} -->
-<!-- plotTSNE(sce, colour_by = "originalexp_snn_res.1", text_by = "originalexp_snn_res.1", force = 0) + scale_color_manual(values = cols) -->
-<!-- ``` -->
+```{r}
+plotTSNE(sce, colour_by = "originalexp_snn_res.0.3", text_by = "originalexp_snn_res.0.3", force = 0) + scale_color_manual(values = cols)
+```
 
-<!-- ```{r result} -->
-<!-- if (!file.exists(here("processed", project, "sce_anno_02.RDS"))) { -->
-<!-- annotation <- read.delim(here("data", "young_FIRE_mice_cluster_anno_02_res.1.tsv")) -->
+```{r result}
+if (!file.exists(here("processed", project, "sce_anno_01.RDS"))) {
+annotation <- read.csv(here("data", "Thalamus_fist_annotation_0.3.csv"))
 
-<!-- celltype <- annotation$Celltype -->
-<!-- clusters_named <- annotation$Cluster_name -->
 
-<!-- sce$celltype <- sce$originalexp_snn_res.1  -->
-<!-- sce$clusters_named <- sce$originalexp_snn_res.1 -->
+clusters_named <- annotation$ClusterName
 
-<!-- # add the celltypes as described above in the correct order to replace the levels. -->
-<!-- levels(sce$celltype) <- celltype -->
-<!-- # and the clusters named to keep the resolution -->
-<!-- levels(sce$clusters_named) <- clusters_named -->
+sce$clusters_named <- sce$originalexp_snn_res.0.3
 
-<!-- # relevel to get the appropriate order in the plots -->
-<!-- sce$genotype <- relevel(factor(sce$genotype), "WT") -->
+# and the clusters named to keep the resolution
+levels(sce$clusters_named) <- clusters_named
 
-<!-- sce$clusters_named <- -->
-<!--   factor(sce$clusters_named, -->
-<!--     levels = c("Microglia", "BAMs","Immune", "Astro_1", "Astro_2", "Astro_Oligo", "OPC", "pOPC", "iOligo", "mOligo_1", "mOligo_2", "mOligo_3",  -->
-<!-- "mOligo_4", "Endothelial", "Mural_cells", "ChP_epithelia", "iNeurons_&_NRPs", "mNeuron_ex",   -->
-<!--  "mNeuron_in" -->
-<!--  ) -->
-<!--   ) -->
-
-<!-- # add annotation of the samples (cool way to map, thanks stackoverflow) -->
-<!-- sample_named_map <- c("WTyo1_h", "HETyo2_h", "KOyo3_h", "WTyo1_c", "HETyo2_c", "KOyo3_c", "WTyo4_h", "HETyo5_h", "KOyo6_h","WTyo4_c", "HETyo5_c", "KOyo6_c") -->
-<!-- names(sample_named_map) <- unique(sce$Sample) -->
-
-<!-- sce$sample_named <- factor(sample_named_map[sce$Sample], levels = c("WTyo1_h", "HETyo2_h", "KOyo3_h", "WTyo1_c", "HETyo2_c", "KOyo3_c", "WTyo4_h", "HETyo5_h", "KOyo6_h","WTyo4_c", "HETyo5_c", "KOyo6_c")) -->
+# relevel to get the appropriate order in the plots
+sce$genotype <- relevel(factor(sce$genotype), "WT")
 
 
 
-<!-- # add a column with both, tissue and genotype -->
-<!-- sce$tissue_genotype <- paste(sce$tissue, sce$genotype, sep = "_") -->
+# add a column with both, tissue and genotype
+sce$tissue_genotype <- paste(sce$tissue, sce$genotype, sep = "_")
 
 
-<!--  saveRDS(sce, here("processed", project, "sce_anno_02.RDS")) -->
-<!-- } -->
-<!-- plotTSNE(sce, colour_by = "clusters_named", text_by = "clusters_named", text_size = 3, force = 1) + scale_color_manual(values = cols) -->
-<!-- ``` -->
+ saveRDS(sce, here("processed", project, "sce_anno_01.RDS"))
+}
+plotTSNE(sce, colour_by = "clusters_named", text_by = "clusters_named", text_size = 3, force = 1) + scale_color_manual(values = cols)
+```
 
 <!-- ## Marker plots -->
 
@@ -535,7 +518,7 @@ if(!file.exists(here("outs", project, "markers_res1", "markers_res1.RDS"))){
 
 
 <!-- ```{r final-violin, eval=FALSE, fig.height=25, fig.width=9, cache=TRUE, include=FALSE} -->
-<!-- annotation <- read.delim(here("data", "young_data_cluster_names_anno_02_res03.tsv")) -->
+<!-- annotation <- read.delim(here("data", "young_data_cluster_names_anno_01_res03.tsv")) -->
 
 <!-- annotation$Cluster_name <- -->
 <!--   factor(annotation$Cluster_name, -->
