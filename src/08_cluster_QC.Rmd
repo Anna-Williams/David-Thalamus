@@ -97,8 +97,10 @@ low_umi_clusters <-
   .$clusters_named
 ```
 
-The clusters flagged are `r low_umi_clusters`.
-Mural cells is at the edge of being flagged, however this could be due to the celltype having lower counts, while the others are clusters of cells from celltypes already represented in other healthier clusters. We will therefore not delete that cluster.
+The clusters flagged are `r low_umi_clusters`. Mural cells is at the edge of
+being flagged, however this could be due to the celltype having lower counts,
+while the others are clusters of cells from celltypes already represented in
+other healthier clusters. We will therefore not delete that cluster.
 
 ### Mithocondrial genes
 
@@ -193,7 +195,6 @@ ggplot(data = prop_per_smp, aes(x = cluster, y = Proportion, fill = Sample)) +
   scale_fill_manual(values = brewer.paired(12)) 
 ```
 
-
 ### Clusters of doublet cells
 
 Detection of clusters formed by doublets/multiplets (i.e. multiple cells
@@ -224,11 +225,46 @@ if(!file.exists(here("outs",project,  "doublet_clusters_res0.3.csv"))){
 }
 res_dbl
 ```
-All clusters have a significant p-value to reject the null hypothesis that they do consist of doublets. 
-The clusters with less DE genes with the potential sources are microglia clusters, lickeley formed by microglia engulfing other cell types.
+
+All clusters have a significant p-value to reject the null hypothesis that they
+do consist of doublets. The clusters with fewer DE genes with the potential
+sources are microglia clusters, likely formed by microglia engulfing other cell
+types. The next clusters are compositions of poor-quality clusters, making it
+hard to untangle if these are doublets. A first clusterQC was made keeping the
+potential doublets (commit 15a39b03), just deleting the clusters flagged for
+other reasons, and then doubletFinder was run again to elucidate the doublets.
+Results below:
+
+Astro-OPCs will not be kept. Astro-Oligo may contain some doublets too but the
+cluster will be kept due to evidence of astro-oligo populations in tissue.
+
++-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
+| cl    | so    | so    | n     | medi  | best  | p.    | lib.  | lib.  | prop  |
+| uster | urce1 | urce2 | um.de | an.de |       | value | size1 | size2 |       |
++-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
+| t     | tOPC1 | tA    | 344   | 5214  | Apoe  | 2.4   | 0.76  | 0.40  | 0.01  |
+| Astro |       | stro1 |       |       |       | 2E-43 | 93783 | 58445 | 33811 |
+| _OPCs |       |       |       |       |       |       |       |       |       |
++-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
+| tmO  | tm   | tA   | 839  | 3975 | Rna  | 1.1  | 0.79 | 0.43 | 0.01 |
+| ligo_ | Oligo | stro1 |       |       | set2a | 7E-21 | 73161 | 48667 | 06727 |
+| Astro |       |       |       |       |       |       |       |       |       |
++-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
+| t     | tRibo | tmN   | 1627  | 4490  | Vtn   | 0.0   | 1.86  | 3.06  | 0.01  |
+| Mural | somal | euron |       |       |       | 0E+00 | 14346 | 18305 | 48959 |
+| cells | _High |       |       |       |       |       |       |       |       |
+|       | _Micr |       |       |       |       |       |       |       |       |
+|       | oglia |       |       |       |       |       |       |       |       |
++-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
+| tE    | tRibo | tmN   | 1836  | 4936  | Ly6c1 | 0.0   | 1.69  | 2.7   | 0.01  |
+| ndoth | somal | euron |       |       |       | 0E+00 | 23566 | 83718 | 83387 |
+| elial | _High |       |       |       |       |       |       |       |       |
+|       | _Micr |       |       |       |       |       |       |       |       |
+|       | oglia |       |       |       |       |       |       |       |       |
++-------+-------+-------+-------+-------+-------+-------+-------+-------+-------+
 
 ```{r}
-doublet <- c("tOPC_Microglia", "tAstro_Microglia")
+doublet <- c("tOPC_Microglia", "tAstro_Microglia", "tAstro_OPCs")
 ```
 
 <!-- ### Control vs fire mice -->
@@ -256,32 +292,46 @@ ncol = 1
 
 #### Proportion KO-WT
 
-The poor quality cluster that are more abundant in KO than WT are coming mostly from one single sample, they will therefore not be "protected" and will be discarded. 
+The poor quality cluster that are more abundant in KO than WT are coming mostly
+from one single sample, they will therefore not be "protected" and will be
+discarded.
 
 <!-- In order to visualise the proportions from KO and WT for each cluster, we do not -->
+
 <!-- take in consideration the microglia clusters, as these are only present in the -->
+
 <!-- control, and we normalise per number of cells per cluster. -->
 
 <!-- ```{r} -->
+
 <!-- # delete the microglia -->
+
 <!-- sce_no_mc <- sce[,!grepl("Microglia", sce$clusters_named)] -->
 
 <!-- # count how many cells from each gnt group  there are per cluster -->
+
 <!-- sum_per_gnt_cluster_no_mc <- table(sce_no_mc$genotype, sce_no_mc$clusters_named ) -->
 
 <!-- # normalise per cluster, looking how the KO and WT are distributed -->
+
 <!-- # across the clusters, to give to both groups the same weight -->
+
 <!-- prop_per_cluster_no_mc <- prop.table(sum_per_gnt_cluster_no_mc, margin = 1) -->
 
 <!-- # calculate the proportions for each cluster -->
+
 <!-- prop_per_gnt_no_mc <- round(prop.table(prop_per_cluster_no_mc , margin = 2 )*100, 2) -->
 
 <!-- # Display -->
+
 <!-- prop_per_gnt_no_mc<- as.data.frame(prop_per_gnt_no_mc) -->
+
 <!-- colnames(prop_per_gnt_no_mc) <- c("Genotype", "cluster", "Proportion") -->
 
 <!-- prop_per_gnt_no_mc %>% -->
+
 <!--   filter(Genotype == "KO") %>% -->
+
 <!--   arrange(desc(Proportion)) -->
 
 <!-- ``` -->
@@ -289,43 +339,63 @@ The poor quality cluster that are more abundant in KO than WT are coming mostly 
 <!-- visualise in a plot -->
 
 <!-- ```{r plot} -->
+
 <!-- ggplot(data = prop_per_gnt_no_mc, aes(x = cluster, y = Proportion, fill = Genotype)) + -->
+
 <!--   geom_bar(position = "fill", stat = "identity") + theme(axis.text.x = element_text(angle = 45, hjust=1, vjust = 1)) + -->
+
 <!--   scale_fill_manual(values = col_wt_ko) -->
+
 <!-- ``` -->
 
 <!-- ```{r} -->
+
 <!-- ko_pct <- 65 -->
+
 <!-- ``` -->
 
-
 <!-- ```{r} -->
+
 <!-- difference_KO_WT <- -->
+
 <!--   prop_per_gnt_no_mc %>% -->
+
 <!--   arrange(desc(Proportion)) %>% -->
+
 <!-- # the microglia clusters will be the top differences, but this is not -->
+
 <!--     # something we are specially interested -->
+
 <!--   filter(!(cluster %in% c("Microglia1", "Microglia2"))) %>% -->
+
 <!--     filter(Genotype == "KO") %>% -->
+
 <!--     # select the "interesting" clusters -->
+
 <!--   filter(Proportion > ko_pct) %>% -->
+
 <!--   .$cluster -->
+
 <!-- ``` -->
 
-
 <!-- ```{r} -->
+
 <!-- gt_ko_pct <- unique(sce$clusters_named[sce$clusters_named %in% c( high_mt_clusters, low_umi_clusters, doublet) & -->
+
 <!--     (sce$clusters_named %in% difference_KO_WT)]) -->
+
 <!-- #gt_ko_pct -->
+
 <!-- ``` -->
 
 <!-- There are r length(gt_ko_pct)` clusters flagged as poor quality and also more -->
-<!-- abundant (greater than r ko_pct` %) in the KO animals, these are r gt_ko_pct`. -->
 
+<!-- abundant (greater than r ko_pct` %) in the KO animals, these are r gt_ko_pct`. -->
 
 ### Cluster QC
 
-the clusters delted from downstream analysis are highlighted bellow, and are composed by clusters with:
+the clusters delted from downstream analysis are highlighted bellow, and are
+composed by clusters with:
 
 -   low umi: more than 50% of cells having less than 4000 umi counts. These are:
 
@@ -337,7 +407,7 @@ the clusters delted from downstream analysis are highlighted bellow, and are com
 
 -   doublet: clusters composed by cells that express markers from different cell
     types.
-    
+
 `r doublet`
 
 <!-- -   artefacts coming from few samples: -->
@@ -348,7 +418,6 @@ the clusters delted from downstream analysis are highlighted bellow, and are com
 
 <!-- r gt_ko_pct` -->
 
-
 ```{r filterout}
 sce$filter_out <- sce$clusters_named %in% c( high_mt_clusters, low_umi_clusters, doublet) 
 filter_out <- sum(sce$filter_out)
@@ -357,7 +426,6 @@ plotTSNE(sce, colour_by = "filter_out", point_size=0.5,
 #plotTSNE(sce, colour_by = "filter_out", point_size=0.5,
 #         point_alpha = 0.3, text_by = "celltype", text_size = 3)
 ```
-
 
 ```{r save, eval=TRUE, include=TRUE}
 if (!file.exists(here("processed", project, "sce_clusterQC.RDS"))){
@@ -375,11 +443,7 @@ This filters `r filter_out` cells, leaving an object with
 
 <details>
 
-<summary>
-
-Click to expand
-
-</summary>
+<summary>Click to expand</summary>
 
 ```{r session-info}
 sessionInfo()
