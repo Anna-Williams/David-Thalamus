@@ -255,7 +255,7 @@ ncol = 1
 
 #### Proportion KO-WT
 
-The poor quality cluster that are more abundant in KO than WT are coming mostly from one single sample, they will therphore not be "protected" and will be discarded. 
+The poor quality cluster that are more abundant in KO than WT are coming mostly from one single sample, they will therefore not be "protected" and will be discarded. 
 
 <!-- In order to visualise the proportions from KO and WT for each cluster, we do not -->
 <!-- take in consideration the microglia clusters, as these are only present in the -->
