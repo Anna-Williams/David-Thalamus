@@ -1,0 +1,205 @@
+---
+title: "Second QC"
+author: "Nadine Bestard"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+editor_options: 
+  markdown: 
+    wrap: 80
+---
+
+# Set-up
+
+```{r output-code, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r set-up, message=FALSE, warning=FALSE, eval=TRUE }
+library(here) # for reproducible paths
+library(SingleCellExperiment)
+library(scater) # For qcs
+library(ggplot2) # To add titles to plots
+library(patchwork) # agregate plots
+library(dplyr) #case_match
+```
+
+```{r load-sce, eval=TRUE}
+
+project <- "fire-mice"
+sce <- readRDS(here("processed", project, "sce_clusterQC.RDS"))
+source(here("src/colours.R"))
+```
+
+The object has `r dim(sce)[1]` genes and `r dim(sce)[2]` cells.
+
+# Cell QC
+
+Previous thresholds were:
+
+|                |               |                 |              |                |          |       |
+|----------------|---------------|-----------------|--------------|----------------|----------|-------|
+|                | lib_size_high | expression_high | lib_size_low | expression_low | mt_pct   | total |
+| Cells filtered | 1518          | 26              | 0            | 6013           | 10837    | 14267 |
+| Threshold      | 26603.2       | 8574.379        | 481.4784     | 367.546        | 11.15063 | NA    |
+
+<details>
+
+<summary>Click to expand plots</summary>
+
+### Violin plots
+
+Split by sample
+
+```{r violinsample, eval=TRUE}
+plotColData(sce, x = "Sample", y = "subsets_mt_percent") +
+  scale_y_log10() + ggtitle("mt genes") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  scale_color_manual(values = cols)
+plotColData(sce, x = "Sample", y = "detected") +
+  scale_y_log10() + ggtitle("Detected genes log scale") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  scale_color_manual(values = cols)
+plotColData(sce, x = "Sample", y = "sum") +
+  scale_y_log10() + ggtitle("Total count log scale") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  scale_color_manual(values = cols)
+```
+
+Split by sample and cluster, facet wrap
+
+```{r violinwrap, fig.height=14, fig.width=14, eval=TRUE}
+
+# detected
+plotColData(sce, x = "Sample", y = "detected",  colour_by = "genotype", other_fields = "clusters_named") +
+  scale_y_log10(breaks = scales::pretty_breaks(n = 12)) + 
+  ggtitle("Detected genes log scale") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +           scale_color_manual(values = col_wt_ko)  + facet_wrap(~clusters_named)
+# sum
+plotColData(sce, x = "Sample", y = "sum",  colour_by = "genotype", other_fields = "clusters_named") +
+ scale_y_log10(breaks = scales::pretty_breaks(n = 12))+
+  ggtitle("Total count log scale") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + 
+  scale_color_manual(values = col_wt_ko)+ facet_wrap(~clusters_named)
+#mt
+plotColData(sce, x = "Sample", y = "subsets_mt_percent",  colour_by = "genotype", other_fields = "clusters_named") +
+ scale_y_log10(breaks = scales::pretty_breaks(n = 12))+
+  ggtitle("Mt. percentage") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) + 
+  scale_color_manual(values = col_wt_ko)+ facet_wrap(~clusters_named)
+
+```
+
+```{r hist}
+hist(
+  sce$detected,
+  breaks = 100
+)
+hist(
+  sce$sum,
+  breaks = 100
+)
+hist(
+  sce$subsets_mt_percent,
+  breaks = 100
+)
+```
+
+### Scatter plots
+
+```{r scatter, fig.height=14, fig.width=14, eval=FALSE}
+
+plotColData(sce, x = "sum", y = "subsets_mt_percent", colour_by = "genotype", other_fields = "clusters_named") + facet_wrap(~clusters_named) + 
+  scale_color_manual(values = col_wt_ko)
+
+plotColData(sce, x = "sum", y = "detected", colour_by = "genotype", other_fields = "clusters_named") + facet_wrap(~clusters_named) + 
+  scale_color_manual(values = col_wt_ko)
+
+```
+
+```{r scatter2, fig.height=14, fig.width=14, eval=TRUE}
+
+plotColData(sce, x = "sum", y = "subsets_mt_percent", colour_by = "Sample", other_fields = "clusters_named") + facet_wrap(~clusters_named) + 
+  scale_color_manual(values = cols)
+
+plotColData(sce, x = "sum", y = "detected", colour_by = "Sample", other_fields = "clusters_named") + facet_wrap(~clusters_named) + 
+  scale_color_manual(values = cols)
+
+```
+
+</details>
+
+
+We set the thresholds for each celltype:
+
+**Sum**
+
+OPCs 6000 
+
+oligo 6000
+
+Astrocyte 3000
+
+Microglia and NK  4000
+BAMs 2000
+
+Mural 2000
+
+Endothelial 2000
+
+mature_neurons 4000
+
+**Mt**
+
+Default 6
+Astro 7
+OPC 5
+
+```{r subset, eval=TRUE}
+
+# create vector with condtions to generate the thresholds for each celltype
+
+sce$threshold_umi <- case_when(grepl("OPC|Oligo", sce$clusters_named) ~ 6000,
+                        grepl("Astro", sce$clusters_named) ~ 3000,
+                        grepl("Microglia|NK|Neuron", sce$clusters_named) ~ 4000,
+                        grepl("BAM|Mural|Endothelial", sce$clusters_named) ~ 2000
+                        )
+#add to the sce
+sce$threshold_mt <- case_when(grepl("OPC", sce$clusters_named) ~ 5,
+                              grepl("Astro", sce$clusters_named) ~ 7,
+                                    .default = 6)
+
+# set thresholds
+discard_umi <- sce$sum < sce$threshold_umi 
+discard_mt <- sce$subsets_mt_percent > sce$threshold_mt
+discard <- discard_umi | discard_mt
+
+# subset
+sce <- sce[,!discard]
+```
+
+We discard `r sum(discard_umi)` cells due to low umi and `r sum(discard_mt)` cells
+due to high mitochondrial content. in total we discard `r sum(discard)` cells
+```{r}
+table(discard_umi, discard_mt)
+```
+
+# Gene QC
+
+In the preliminary analysis we only deleted genes that had less than 2 cells
+expressing it, now we filter all genes with less than 10 cells expressing it
+
+```{r gene, eval=TRUE}
+# at least 10 cells should express the gene
+keep_feature <- rowSums(counts(sce) > 0) > 10
+sce <- sce[keep_feature,]
+```
+
+We keep `r sum(keep_feature)` genes
+
+```{r save, eval=TRUE}
+if(!file.exists(here("processed", project,  "sce_QC_02.RDS"))){
+  saveRDS(sce, here("processed", project,  "sce_QC_02.RDS"))
+  }
+```
+
+Final dimension is `r dim(sce)`
