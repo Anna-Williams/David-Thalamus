@@ -70,8 +70,8 @@ cells. Cells can also have lower expressed genes due to their biological state
 or celltype.
 
 ```{r}
-pct_cells<- 40
-min_umi  <- 3000
+pct_cells<- 50
+min_umi  <- 4000
 ```
 
 Select clusters with `r pct_cells` % cells having less than `r min_umi`umi
@@ -98,6 +98,7 @@ low_umi_clusters <-
 ```
 
 The clusters flagged are `r low_umi_clusters`.
+Mural cells is at the edge of being flagged, however this could be due to the celltype having lower counts, while the others are clusters of cells from celltypes already represented in other healthier clusters. We will therefore not delete that cluster.
 
 ### Mithocondrial genes
 
@@ -326,7 +327,7 @@ The poor quality cluster that are more abundant in KO than WT are coming mostly 
 
 the clusters delted from downstream analysis are highlighted bellow, and are composed by clusters with:
 
--   low umi: more than 40% of cells having less than 3000 umi counts. These are:
+-   low umi: more than 50% of cells having less than 4000 umi counts. These are:
 
 `r low_umi_clusters`
 
