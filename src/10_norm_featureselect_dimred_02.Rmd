@@ -1,7 +1,7 @@
 ---
 title: "Reanalise after QC"
 author: "Nadine Bestard"
-date: "17/01/2022"
+date: "`r Sys.Date()`"
 output:
   html_document:
     code_folding: hide
@@ -90,12 +90,12 @@ plot(pct_var, log="y", xlab="PC", ylab="pct variance explained")
 
 
 
- #will keep 27PCs 
+ #will keep 29PCs 
 
 #keep the previous dimensional reduction just in case
 reducedDim(sce, "PCA_all") <- reducedDim(sce, "PCA")
 # And replace the default PCA with the reduced PCs
-reducedDim(sce, "PCA") <- reducedDim(sce, "PCA")[,1:27]
+reducedDim(sce, "PCA") <- reducedDim(sce, "PCA")[,1:29]
 }
 ```
 
