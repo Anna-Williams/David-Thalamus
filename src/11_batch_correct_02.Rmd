@@ -1,0 +1,124 @@
+---
+title: "Batch(sex) correct"
+author: "Nadine Bestard"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(here) # for reproducible paths
+library(SingleCellExperiment)
+library(scater) # For qcs
+library(batchelor) # Batch correction
+library(ggplot2) # To add titles to plots
+```
+```{r}
+
+project <- "fire-mice"
+if (!(file.exists(
+  here("processed", project,  "sce_corrected_02.RDS")
+))) {
+sce <- readRDS(here("processed", project, "sce_dimred_02.RDS"))
+} else{
+  sce <- readRDS(here("processed", project,  "sce_corrected_02.RDS"))
+}
+source(here("src/colours.R"))
+```
+
+
+## Rerrun batch correction
+
+As some clusters such as microglia or endothelial cells were still sperate by sex, I increase the k, to force a more aggressive merging as the algorithm is more generous in matching subpopulations across batches.
+```{r batch, eval=TRUE, message=FALSE, warning=FALSE}
+if (!(file.exists(
+  here("processed", project,  "sce_corrected_02.RDS")
+))) {
+set.seed(100)
+sce <- correctExperiments(sce,
+  batch = factor(sce$sex),
+  subset.row = rowSubset(sce),
+  correct.all=TRUE,
+  PARAM = FastMnnParam(
+  d = 27,
+  prop.k=0.20
+  )
+)
+# recompute dimensional reduction 
+#keeping  the previous dimensional reduction
+reducedDim(sce, "TSNE_uncorrected") <- reducedDim(sce, "TSNE")
+reducedDim(sce, "UMAP_uncorrected") <- reducedDim(sce, "UMAP")
+set.seed(100)
+sce <- runTSNE(sce,  dimred="corrected", name = "TSNE_MNN")
+
+set.seed(100)
+sce <- runUMAP(sce, dimred="corrected", name = "UMAP_MNN")
+
+# save
+saveRDS( sce, here("processed", project,  "sce_corrected_02.RDS"))
+}
+
+plotReducedDim(sce, colour_by= "sex", dimred = "TSNE_MNN") + 
+      ggtitle("TSNE dimensional reduction corrected")
+plotReducedDim(sce, colour_by= "sex", dimred = "TSNE_MNN", other_fields = "sex") + 
+  facet_wrap(~sex) +
+      ggtitle("TSNE dimensional reduction corrected")
+plotReducedDim(sce, dimred="TSNE_MNN", colour_by="clusters_named") + scale_colour_manual(values = cols)
+plotReducedDim(sce, colour_by= "genotype", dimred = "TSNE_MNN")
+
+```
+
+
+## Try another batch correction
+
+I test harmony batch correction
+```{r}
+if (!(file.exists(
+  here("processed", project,  "sce_corrected_02.RDS")
+))) {
+library(harmony)
+set.seed(100)
+# compute new embeding
+harmony_pca <- HarmonyMatrix(data_mat = reducedDim(sce, "PCA"), do_pca = FALSE, 
+                             meta_data = colData(sce), vars_use = "sex", plot_convergence=TRUE)
+#save in sce
+reducedDim(sce, "harmony") <- harmony_pca
+}
+```
+```{r dimeredharm}
+if (!(file.exists(
+  here("processed", project,  "sce_corrected_02.RDS")
+))) {
+set.seed(100)
+sce <- runTSNE(sce,  dimred="harmony", name = "TSNE_harmony")
+
+set.seed(100)
+sce <- runUMAP(sce, dimred="harmony", name = "UMAP_harmony")
+
+# we choose to stick with this integration as a default.
+reducedDim(sce, "TSNE") <- reducedDim(sce, "TSNE_harmony")
+reducedDim(sce, "UMAP") <- reducedDim(sce, "UMAP_harmony")
+
+saveRDS(sce, here("processed", project,  "sce_corrected_02.RDS"))
+}
+```
+
+```{r }
+plotReducedDim(sce, colour_by= "sex", dimred = "TSNE_harmony") + 
+      ggtitle("TSNE dimensional reduction corrected")
+plotReducedDim(sce, colour_by= "sex", dimred = "TSNE_harmony", other_fields = "sex") + 
+  facet_wrap(~sex) +
+      ggtitle("TSNE dimensional reduction corrected")
+plotReducedDim(sce, dimred="TSNE_harmony", colour_by="clusters_named") + scale_colour_manual(values = cols)
+plotReducedDim(sce, colour_by= "genotype", dimred = "TSNE_harmony")
+
+```
+
+With this second correction the mural and endo cells are more integrated, the microglia remains similar to the MNN correction. 
+However the differences on the Oligos between WT and KO seem to be less evident than the MNN correction. The sexes are not balanced between genotypes, therphore over correcting for sex differences may also reduce the genotype differences. This would not affect the DE (that is computed on the uncorrected matrices), but could affect the DA (milo).
+
+We decided to use the harmony integration, as having different clusters for the mural cells and endothelial due to sex differences could be missliding, and the differnces between genotypes will be picked up equally by the DE. 
+
+

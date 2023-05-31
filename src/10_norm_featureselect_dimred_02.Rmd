@@ -22,7 +22,6 @@ library(SingleCellExperiment)
 library(scater) # For qcs
 library(scran) # for normalisation, feature selection
 library(ggplot2) # To add titles to plots
-library(batchelor) # Batch correction
 library(patchwork) # agregate plots
 library(pals) # for palettes with large n
 ```
@@ -120,62 +119,8 @@ plotReducedDim(sce, dimred="TSNE", colour_by="sex", point_size=0.1, point_alpha 
 saveRDS(sce, here("processed", project, "sce_dimred_02.RDS"))
 
 }else{ # load teh corrected object
-  sce <- readRDS(here("processed", project,  "sce_corrected_02.RDS"))
-  plotReducedDim(sce, "TSNE_uncorrected", colour_by="sex")
+  sce <- readRDS(here("processed", project,  "sce_dimred_02.RDS"))
+  plotReducedDim(sce, "TSNE", colour_by="sex")
 }
-```
-
-## Rerrun batch correction
-
-```{r batch, eval=TRUE, message=FALSE, warning=FALSE}
-if (!(file.exists(
-  here("processed", project,  "sce_corrected_02.RDS")
-))) {
-set.seed(100)
-sce <- correctExperiments(sce,
-  batch = factor(sce$sex),
-  subset.row = rowSubset(sce),
-  correct.all=TRUE,
-  PARAM = FastMnnParam(
-  d = 27,
-  prop.k=0.10
-  )
-)
-# recompute dimensional reduction 
-#keeping  the previous dimensional reduction
-reducedDim(sce, "TSNE_uncorrected") <- reducedDim(sce, "TSNE")
-reducedDim(sce, "UMAP_uncorrected") <- reducedDim(sce, "UMAP")
-set.seed(100)
-sce <- runTSNE(sce,  dimred="corrected")
-
-set.seed(100)
-sce <- runUMAP(sce, dimred="corrected")
-
-# save
-saveRDS( sce, here("processed", project,  "sce_corrected_02.RDS"))
-}
-plotReducedDim(sce, colour_by= "sex", dimred = "TSNE") + 
-      ggtitle("TSNE dimensional reduction corrected")
-plotReducedDim(sce, dimred="TSNE", colour_by="clusters_named") + scale_colour_manual(values = cols)
-plotReducedDim(sce, colour_by= "genotype", dimred = "TSNE")
-
-```
-
-## Checks
-
-It is expected that there are less male microglia, as only 1 mice is male WT.
-
-```{r}
-plotReducedDim(sce[,sce$sex == "F"], colour_by= "genotype", dimred = "TSNE")
-```
-
-
-```{r}
-plotReducedDim(sce[,sce$sex == "M"], colour_by= "genotype", dimred = "TSNE")
-```
-```{r}
-plotExpression(sce, features = "Xist", x = c("sex"))
-
-plotExpression(sce, features = "Xist", x = c("Sample"))
 ```
 
