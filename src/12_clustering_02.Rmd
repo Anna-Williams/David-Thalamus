@@ -116,32 +116,37 @@ It is helpful to realize that clustering, like a microscope, is simply a tool to
 ```{r seurat}
 #only run if first time
 if (!file.exists( here("processed", project, "srt_clusters_02.RDS"))) {
-   # delete old clustering
+  
+  srt <- as.Seurat(sce)
+  
+  # delete old clustering
+  srt_cluster_names <- grep("originalexp_snn_res", names(srt@meta.data), value = TRUE)
+  srt_clusters_metadata <- srt[[srt_cluster_names]]
   srt_cluster_names <-
     grep("originalexp_snn_res", names(srt_clusters_metadata), value = TRUE)
   for (cluster in srt_cluster_names) {
-  colData(sce)[[cluster]] <- NULL
+    colData(sce)[[cluster]] <- NULL
   }
-srt <- as.Seurat(sce)
-srt <- FindNeighbors(srt, reduction = "corrected", dims = 1:25)
-srt <- FindClusters(srt, 
-                    resolution = c(0.01, 0.04, 0.05, 
-                                 seq(from = 0.1, to = 1, by = 0.1))
-                   )
-srt_cluster_names <- grep("originalexp_snn_res", names(srt@meta.data), value = TRUE)
-srt_clusters_metadata <- srt[[srt_cluster_names]]
-
-saveRDS(srt_clusters_metadata, here("processed", project, "srt_clusters_02.RDS"))
-
-plot_list_func(srt, 
-               col_pattern="originalexp_snn_res", 
-               plot_cols = cols,
-               reduction = "TSNE", 
-               label_size = 4 
-               )
-
-DimPlot(srt, reduction = "TSNE", group.by = "originalexp_snn_res.1", label = TRUE)
-
+  
+  srt <- FindNeighbors(srt, reduction = "harmony", dims = 1:25)
+  srt <- FindClusters(srt, 
+                      resolution = c(0.01, 0.04, 0.05, 
+                                     seq(from = 0.1, to = 1, by = 0.1))
+  )
+  srt_cluster_names <- grep("originalexp_snn_res", names(srt@meta.data), value = TRUE)
+  srt_clusters_metadata <- srt[[srt_cluster_names]]
+  
+  saveRDS(srt_clusters_metadata, here("processed", project, "srt_clusters_02.RDS"))
+  
+  plot_list_func(srt, 
+                 col_pattern="originalexp_snn_res", 
+                 plot_cols = cols,
+                 reduction = "TSNE", 
+                 label_size = 4 
+  )
+  
+  DimPlot(srt, reduction = "TSNE", group.by = "originalexp_snn_res.1", label = TRUE)
+  
 } else{
   srt_clusters_metadata <-
     readRDS( here("processed", project, "srt_clusters_02.RDS"))
@@ -159,7 +164,7 @@ if (!file.exists( here("processed", project, "sce_clusters_02.RDS"))) {
 # check the cell names are the same
 identical(row.names(colData(sce)), row.names(srt_clusters_metadata))
 
- # delete old clustering
+ # delete old clustering from sce
   srt_cluster_names <-
     grep("originalexp_snn_res", names(srt_clusters_metadata), value = TRUE)
   for (cluster in srt_cluster_names) {
