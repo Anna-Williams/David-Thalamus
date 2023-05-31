@@ -117,8 +117,8 @@ plotReducedDim(sce, colour_by= "genotype", dimred = "TSNE_harmony")
 ```
 
 With this second correction the mural and endo cells are more integrated, the microglia remains similar to the MNN correction. 
-However the differences on the Oligos between WT and KO seem to be less evident than the MNN correction. The sexes are not balanced between genotypes, therphore over correcting for sex differences may also reduce the genotype differences. This would not affect the DE (that is computed on the uncorrected matrices), but could affect the DA (milo).
+However the differences on the Oligos between WT and KO seem to be less evident than the MNN correction. The sexes are not balanced between genotypes, therefore over correcting for sex differences may also reduce the genotype differences. This would not affect the DE (that is computed on the uncorrected matrices), but could affect the DA (milo).
 
-We decided to use the harmony integration, as having different clusters for the mural cells and endothelial due to sex differences could be missliding, and the differnces between genotypes will be picked up equally by the DE. 
+We decided to use the harmony integration, as having different clusters for the mural cells and endothelial due to sex differences could be misleading, and the differences between genotypes will be picked up equally by the DE. 
 
 
