@@ -156,7 +156,8 @@ filterDE <- function(de_results,
     de_results_df <- de_results_df %>%
       filter(minAmbient < ambient_threshold)
   }
-}
+} # This should be called fileterCombineDE
+
 
 getAmbientGenes <- function(de_results,
                               ambient_threshold = 0.1,
@@ -262,3 +263,18 @@ project <- "fire-mice"
   ggsave(here("outs", project, "DE_edgeR", "plots", paste0("DE_main_celtype.pdf")),
          height = 7, width = 10
   )
+
+  
+  # filter Ambient
+ dir.create(here("outs", project, "DE_edgeR","de_results_celltype","ambient_removed_25pct"))
+  lapply(names(de_results_celltype), function(cluster){
+    de_results_clu <- de_results_celltype[[cluster]]
+    as.data.frame(de_results_clu) %>% 
+      filter(minAmbient < 0.25) %>% 
+      write.csv(here("outs", project, "DE_edgeR","de_results_celltype","ambient_removed_25pct", paste("de_results_ambientremoved_25pct_", cluster, ".csv")))
+      
+  }
+  )
+
+  
+  
