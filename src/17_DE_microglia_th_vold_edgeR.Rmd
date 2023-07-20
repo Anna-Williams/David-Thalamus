@@ -41,6 +41,7 @@ sce_vold <- sce_vold[,sce_vold$celltype == "Microglia" & sce_vold$genotype == "W
 #select the common genes
 genes <- rownames(sce_th)[rownames(sce_th) %in% rownames(sce_vold)]
 #subset for common metadata (some is non-sense to merge, but it does not bother)
+sce_vold$sex <- "M"
 metadata <- colnames(colData(sce_th))[colnames(colData(sce_th)) %in% colnames(colData(sce_vold))]
 colData(sce_th) <- colData(sce_th)[,metadata]
 colData(sce_vold) <- colData(sce_vold)[,metadata]
@@ -92,11 +93,13 @@ for (i in seq_len(ncol(dge_summed))) {
 ```{r}
 plotMDS(cpm(dge_summed, log=TRUE), 
     col=ifelse(dge_summed$samples$tissue == "thalamus", "red", "blue"))
+plotMDS(cpm(dge_summed, log=TRUE), 
+    col=ifelse(dge_summed$samples$sex == "F", "red", "blue"))
 
 # Build teh design
 # Reordering the factor
 dge_summed$samples$tissue <- factor(dge_summed$samples$tissue, levels = c("whole_brain", "thalamus"))
-design <- model.matrix(~factor(tissue), dge_summed$samples)
+design <- model.matrix(~ factor(sex) +  factor(tissue), dge_summed$samples)
 
 # estimate dispersions
 dge_summed <- estimateDisp(dge_summed, design)
@@ -106,7 +109,7 @@ fit <- glmQLFit(dge_summed, design, robust=TRUE)
 de_results <- glmQLFTest(fit, coef=ncol(design))
 
 # save results
-write.csv(topTags(de_results, n = 19142), here("outs", project, "DE_edgeR", "de_results_microglia_th_vs_vold.csv"))
+write.csv(topTags(de_results, n = 19142), here("outs", project, "DE_edgeR", "de_results_microglia_th_vs_vold_sex.csv"))
 
 saveRDS(de_results, here("processed", project, "de_results_microglia_th_vs_vold.RDS"))
 ```
