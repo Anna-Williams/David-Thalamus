@@ -1,0 +1,50 @@
+---
+title: "Differential Expression Oligos MAST"
+author: "Nadine Bestard"
+date: "15/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+```{r set-up, message=FALSE, warning=FALSE}
+# libraries
+library(Seurat) # for scrnaseq analyisis
+library(here)   # for reproducible paths
+library(dplyr) # manipulated df
+library(SingleCellExperiment) # for sce object import
+```
+```{r load}
+project <- "fire-mice"
+sce <- readRDS(here("processed", project, "microglia_th_and_vold.RDS")) 
+# only load the raw data, that is needed for DE
+srt <- as.Seurat(sce, counts = "counts")
+Idents(srt) <- "tissue"
+```
+
+# DE 
+
+“MAST” : GLM-framework that treates cellular detection rate as a covariate (Finak et al, Genome Biology, 2015) 
+
+```{r}
+de_mast <- FindMarkers(srt, ident.1 = "thalamus", ident.2 = "whole_brain", test.use = "MAST")
+saveRDS(de_mast, here("processed", project, "DE_microglia_THvsVold_mast_de_results.RDS"))
+dir.create(here("outs", project, "DE_MAST"))
+write.csv(de_mast, here("outs", project, "DE_MAST", "de_results_microglia_THvsVold_mast.csv") )
+```
+
+```{r}
+#load edgeR
+edgeR <- read.csv(here("outs", project, "DE_edgeR", "de_results_microglia_th_vs_vold.csv"), row.names = 1)
+#fitler significant
+edgeR_sig <- edgeR[edgeR$FDR < 0.1,]
+# sigindicant = 4337
+# overlap with edgeR
+de_mast_overlap <- de_mast[(rownames(de_mast) %in% rownames(edgeR_sig)),]
+write.csv(de_mast_overlap, here("outs", project, "DE_MAST", "de_results_microglia_THvsVold_mast_OverlapWithEdgeR.csv"))
+```
+

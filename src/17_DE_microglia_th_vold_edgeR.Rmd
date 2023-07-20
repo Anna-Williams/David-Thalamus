@@ -1,0 +1,127 @@
+---
+title: "Differential Expressino Oligos edgeR"
+author: "Nadine Bestard"
+date: "24/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#### set-up
+```{r}
+library(scran) # for scDE
+library(scater) # for aggregate counts
+library(edgeR) #for De
+library(here) # reproducible paths
+```
+```{r load}
+project <- "fire-mice"
+sce_th <- readRDS(here("processed", project, "sce_anno_02.RDS")) 
+sce_vold <- readRDS(here("../R-analysis-vold", "processed", project, "sce_anno_02.RDS"))
+```
+
+```{r paths, eval=FALSE}
+dir.create(here("outs", project, "DE_edgeR"), showWarnings = FALSE, recursive = TRUE)
+dir.create(here("processed", project), showWarnings = FALSE, recursive = TRUE)
+```
+
+## Only Microglia 
+
+I select only the microglia from both datasets, and merge them to a single dataset.
+As the DE is on the raw counts, a simple merge will be used with no normalisation nor integration.
+```{r}
+
+sce_th <- 
+  sce_th[,sce_th$celltype == "thMicroglia" & sce_th$genotype == "WT"] # the genotype should already be only WT, but still I add it in case there are a few cells from KO wrongly classified as microglia
+sce_vold <- sce_vold[,sce_vold$celltype == "Microglia" & sce_vold$genotype == "WT"] 
+
+#select the common genes
+genes <- rownames(sce_th)[rownames(sce_th) %in% rownames(sce_vold)]
+#subset for common metadata (some is non-sense to merge, but it does not bother)
+metadata <- colnames(colData(sce_th))[colnames(colData(sce_th)) %in% colnames(colData(sce_vold))]
+colData(sce_th) <- colData(sce_th)[,metadata]
+colData(sce_vold) <- colData(sce_vold)[,metadata]
+
+
+#Merge them
+# delete the gene_names and other non-matching things because they give problems
+rowData(sce_th)$gene_name <- NULL
+rowData(sce_th)$subset <- NULL
+assay(sce_th, "reconstructed") <- NULL
+reducedDims(sce_th) <- NULL
+reducedDims(sce_vold) <- NULL
+
+sce <- cbind(sce_th[genes,], sce_vold[genes,])
+saveRDS(sce, here("processed", project, "microglia_th_and_vold.RDS"))
+```
+
+## Pre processed
+
+Sum the counts
+```{r}
+summed <- aggregateAcrossCells(sce, 
+    id=colData(sce)[,"Sample"])
+```
+
+```{r}
+# create DGElist
+dge_summed <- DGEList(counts(summed), samples=colData(summed))
+
+# Filter genes with specific function from edgeR
+keep <- filterByExpr(dge_summed, group=summed$genotype)
+dge_summed <- dge_summed[keep,]
+summary(keep)
+```
+
+## Run edgeR pipeline
+
+edgeR allows to add a design matrix, with the batch as a covariate, to account for batch differences in the differential expression
+
+```{r}
+dge_summed <- calcNormFactors(dge_summed)
+par(mfrow=c(2,4))
+for (i in seq_len(ncol(dge_summed))) {
+    plotMD(dge_summed, column=i)
+}
+```
+
+
+```{r}
+plotMDS(cpm(dge_summed, log=TRUE), 
+    col=ifelse(dge_summed$samples$tissue == "thalamus", "red", "blue"))
+
+# Build teh design
+# Reordering the factor
+dge_summed$samples$tissue <- factor(dge_summed$samples$tissue, levels = c("whole_brain", "thalamus"))
+design <- model.matrix(~factor(tissue), dge_summed$samples)
+
+# estimate dispersions
+dge_summed <- estimateDisp(dge_summed, design)
+fit <- glmQLFit(dge_summed, design, robust=TRUE)
+
+# Run DE
+de_results <- glmQLFTest(fit, coef=ncol(design))
+
+# save results
+write.csv(topTags(de_results, n = 19142), here("outs", project, "DE_edgeR", "de_results_microglia_th_vs_vold.csv"))
+
+saveRDS(de_results, here("processed", project, "de_results_microglia_th_vs_vold.RDS"))
+```
+
+
+**Output:**
+
+LogFC is the log fold-change, which is the log difference between both groups
+
+LogCPM are the log counts per million, which can be understood as measuring expression level.
+
+F is the F-statistic from the quasi-likelihood F-test.
+
+PValue is the nominal p-value derived from F without any multiple testing correction
+
+FDR (False discovery rate) is the PValue after Benjamini-Hochberg correction.  For example, the set of genes with adjusted p value less than 0.1 should contain no more than 10% false positives.
+
+
