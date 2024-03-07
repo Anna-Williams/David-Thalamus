@@ -420,6 +420,20 @@ wrap_plots(list_plots) +  plot_annotation(title =  "Ependymal")
 
 </details>
 
+
+<details>
+
+<summary> Click to expand the fibroblasts marker plots </summary>
+
+```{r pvf, fig.height=8, fig.width=9, cache=TRUE}
+list_plots <- lapply(c("Lum", "Lama1", "Col1a1"), 
+           function(x)plotTSNE(sce, colour_by = x )) 
+wrap_plots(list_plots) +  plot_annotation(title =  "PVF")
+
+```
+
+</details>
+
 ## Top markers and differential expression
 
 In order to help with the identification of the different clusters we
@@ -535,9 +549,15 @@ sce$celltype <- droplevels(sce$celltype)
 sce$clusters_named <- as.factor(ifelse(sce$originalexp_snn_res.0.3 == 12, "thBAMs", as.character(sce$clusters_named)))
 sce$celltype <- as.factor(ifelse(sce$originalexp_snn_res.0.3 == 12, "thBAMs", as.character(sce$celltype)))
 
+# Add the PVFs annotation
+# cells that are part of the thMixed that were part of the cluster 6 in the 0.1 resolution (these are the ones positive for the markers). 
+is_pvf <- sce$clusters_named == "thMixed" & sce$originalexp_snn_res.0.1 == 6
+sce$clusters_named <- as.factor(ifelse(is_pvf, "thPVF", as.character(sce$clusters_named)))
+
+
 # relevel to get the appropriate order in the plots
 sce$clusters_named <- factor(sce$clusters_named,
-    levels = c("thBAMs","thMicroglia", "thGran&Mono","thT&NK_cells","thDC&Mono","thAstro1", "thAstro2", "thAstroOligos",  "thOPC1", "thOPC2","thiOligo","thmOligo1", "thmOligo2", "thmOligo3","thEndothelial", "thMural_cells", "thmNeuron", "thMixed"))
+    levels = c("thBAMs","thMicroglia", "thGran&Mono","thT&NK_cells","thDC&Mono","thAstro1", "thAstro2", "thAstroOligos",  "thOPC1", "thOPC2","thiOligo","thmOligo1", "thmOligo2", "thmOligo3","thEndothelial", "thMural_cells", "thPVF","thmNeuron", "thMixed"))
 sce$celltype <- factor(sce$celltype,
     levels = c("thBAMs","thMicroglia", "thImmune","thAstrocyte","thAstroOligos","thOPC" ,  "thOligodendrocyte","thEndothelial", "thMural_cells","thNeuron", "thMixed"))
 
