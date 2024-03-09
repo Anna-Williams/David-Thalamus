@@ -71,10 +71,6 @@ summed <- aggregateAcrossCells(sce,
 # create DGElist
 dge_summed <- DGEList(counts(summed), samples=colData(summed))
 
-# Filter genes with specific function from edgeR
-keep <- filterByExpr(dge_summed, group=summed$genotype)
-dge_summed <- dge_summed[keep,]
-summary(keep)
 ```
 
 ## Run edgeR pipeline
